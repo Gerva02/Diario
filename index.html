@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diario — task e impegni</title>
+<style>
+  :root { --bg:#faf8f4; --card:#fff; --ink:#1c1a17; --mut:#6f6a61; --line:#e5e0d6; --acc:#7a4a1f; --red:#b3352b; --grn:#2e7d46; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:20px 16px 8px; max-width:760px; margin:0 auto; }
+  h1 { font-size:24px; margin:0 0 2px; }
+  .sub { color:var(--mut); font-size:14px; }
+  .counts { display:flex; gap:8px; margin:14px 0 4px; flex-wrap:wrap; }
+  .pill { background:var(--card); border:1px solid var(--line); border-radius:999px; padding:6px 12px; font-size:13px; }
+  .pill b { font-size:15px; }
+  .pill.red b { color:var(--red); }
+  nav { display:flex; gap:8px; padding:10px 16px; max-width:760px; margin:0 auto; position:sticky; top:0; background:var(--bg); z-index:5; }
+  nav button { flex:1; padding:10px; border-radius:10px; border:1px solid var(--line); background:var(--card); font-size:15px; cursor:pointer; }
+  nav button.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+  main { max-width:760px; margin:0 auto; padding:4px 16px 90px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); margin:20px 0 8px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:8px; display:flex; gap:12px; align-items:flex-start; }
+  .card.done { opacity:.55; }
+  .card input[type=checkbox] { width:20px; height:20px; margin-top:2px; accent-color:var(--grn); flex:none; }
+  .t { font-size:16px; font-weight:600; }
+  .card.done .t { text-decoration:line-through; }
+  .meta { font-size:13px; color:var(--mut); margin-top:2px; }
+  .meta .when { color:var(--acc); font-weight:600; }
+  .meta .overdue { color:var(--red); font-weight:700; }
+  .det { font-size:14px; color:#3d3933; margin-top:6px; line-height:1.45; }
+  .chip { display:inline-block; font-size:11px; border:1px solid var(--line); border-radius:999px; padding:1px 8px; margin-left:6px; color:var(--mut); vertical-align:2px; }
+  .chip.scadenza { color:var(--red); border-color:#ecc9c5; }
+  .empty { color:var(--mut); font-size:14px; padding:6px 0; }
+  .addbar { position:fixed; left:0; right:0; bottom:0; background:var(--card); border-top:1px solid var(--line); padding:10px 12px; }
+  .addbar .row { max-width:760px; margin:0 auto; display:flex; gap:8px; }
+  .addbar input[type=text] { flex:1; padding:10px; border:1px solid var(--line); border-radius:10px; font-size:15px; }
+  .addbar input[type=date] { padding:10px; border:1px solid var(--line); border-radius:10px; font-size:14px; }
+  .addbar button { padding:10px 16px; border-radius:10px; border:0; background:var(--acc); color:#fff; font-size:15px; cursor:pointer; }
+  .tools { display:flex; gap:8px; margin-top:22px; flex-wrap:wrap; }
+  .tools button, .tools label { font-size:13px; padding:8px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); cursor:pointer; }
+  .note { font-size:12px; color:var(--mut); margin-top:10px; line-height:1.5; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Diario</h1>
+  <div class="sub" id="today"></div>
+  <div class="counts" id="counts"></div>
+</header>
+<nav>
+  <button id="tab-tasks" class="on" onclick="show('tasks')">Task</button>
+  <button id="tab-routines" onclick="show('routines')">Routine</button>
+  <button id="tab-log" onclick="show('log')">Registro</button>
+</nav>
+<main>
+  <section id="view-tasks"></section>
+  <section id="view-routines" style="display:none"></section>
+  <section id="view-log" style="display:none"></section>
+  <div class="tools">
+    <button onclick="exportData()">Esporta data.json</button>
+    <label>Importa data.json<input type="file" accept=".json,application/json" style="display:none" onchange="importData(event)"></label>
+    <button onclick="resetData()">Reset ai dati del repository</button>
+  </div>
+  <p class="note">Pagina autonoma, nessun server e nessun account: i dati partono da <b>data.json</b> (in questo repository) e le modifiche fatte qui restano in questo browser (localStorage). Per renderle definitive: <b>Esporta</b> e sostituisci data.json nel repository con il file scaricato.</p>
+</main>
+<div class="addbar" id="addbar">
+  <div class="row">
+    <input type="text" id="new-title" placeholder="Nuovo task…">
+    <input type="date" id="new-date">
+    <button onclick="addTask()">Aggiungi</button>
+  </div>
+</div>
+<script>
+const EMBEDDED = {"log":[{"date":"2026-10-17","id":1,"text":"Marca serale: «Niente, solo impostato te» — nessuna sessione; la giornata è andata a impostare Muse. Registrato così com'è."}],"meta":{"exported_at":"2026-10-30","owner":"Simone Maria Gervasoni","source":"Esportato dal diario Muse il 30 ottobre 2026. Da qui in poi questa copia e autonoma: i dati vivono in questo file.","title":"Diario — task e impegni"},"routines":[{"cadence":"Ogni giorno · 8:30 / 8:45 / 9:00","detail":"Tre sveglie sul telefono.","id":1,"sort":10,"title":"Sveglie del mattino"},{"cadence":"Ogni mattina · ~9:05","detail":"Audio nuovo ogni giorno, stile Waking Up (Sam Harris): laico, consapevolezza aperta, focus a rotazione.","id":2,"sort":20,"title":"Meditazione"},{"cadence":"Ogni giorno · ~9:18","detail":"Muse porta la prima sessione della giornata.","id":3,"sort":30,"title":"Check-in del mattino"},{"cadence":"Ogni sera · 21:18","detail":"Cosa hai fatto davvero, registrato com'è. Anche «niente» è una risposta valida.","id":4,"sort":40,"title":"Marca serale"},{"cadence":"Domenica · 18:18","detail":"Si guarda la settimana passata e si imposta la prossima.","id":5,"sort":50,"title":"Review settimanale"}],"tasks":[{"category":"sessione","date":"2026-10-18","detail":"Seguendo la scheda 4 della mensola dei prerequisiti: calcola log Λ(η) a mano, dal modello fino alla posteriore gaussiana esatta. Output visibile: la pagina del conto. È il centro della nota di venerdì — venerdì la barra è rifarlo a libro chiuso.","done":false,"done_at":null,"future_log":false,"id":1,"kind":"task","time":"50 min","title":"Girsanov per il modello WF"},{"category":"sessione","date":"2026-10-18","detail":"Riscrivi la SDE di Wright–Fisher come equazione integrale; sotto ogni termine: il suo ordine in h, E[dX] e Var(dX) dato X_t = x. Output visibile: la pagina. È esattamente quello che la sessione 1 di lunedì ti chiederebbe a freddo.","done":false,"done_at":null,"future_log":false,"id":2,"kind":"task","time":"50 min","title":"SDE = equazione integrale"},{"category":"sessione","date":"2026-10-18","detail":"I 12 programmi, una riga ciascuno con la scadenza: ETH, ELLIS, CLS, Bocconi e gli altri che hai in testa. Output visibile: la lista grezza. Toglie peso a lunedì.","done":false,"done_at":null,"future_log":false,"id":3,"kind":"task","time":"50 min","title":"Target list v0 — prima passata"},{"category":"mossa","date":"2026-10-18","detail":"L'identificativo provvisorio che abbiamo è P + 7 cifre e caf.fr lo rifiuta: ne servono 8. Lo verifichi sui tuoi documenti CAF; fatto quello, riprende l'invio della saisine al Médiateur (testo pronto, login da completare).","done":false,"done_at":null,"future_log":false,"id":4,"kind":"task","time":"pomeriggio","title":"Verifica l'identificativo CAF sui documenti"},{"category":"mossa","date":"2026-10-18","detail":"La review della settimana con Muse.","done":false,"done_at":null,"future_log":false,"id":5,"kind":"task","time":"18:18","title":"Review settimanale"},{"category":"sessione","date":"2026-10-19","detail":"A mano: nota §1(a), la SDE di Wright–Fisher termine a termine, una pagina. Diventa il paragrafo «modello» della nota per Giordano e dell'introduzione della tesi.","done":false,"done_at":null,"future_log":false,"id":6,"kind":"task","time":"50 min","title":"Sessione 1 — la SDE termine a termine"},{"category":"mossa","date":"2026-10-19","detail":"Richieste corte, in italiano, dall'account UniTo — le bozze le prepara Muse. Servono le accettazioni prima delle nomine nel portale ELLIS (31 ottobre). A ciascuno: CV, transcript, e una riga per programma con scadenza e meccanica.","done":false,"done_at":null,"future_log":false,"id":7,"kind":"task","time":null,"title":"Chiedi le lettere a Favaro e De Blasi"},{"category":"mossa","date":"2026-10-19","detail":"Per gli esami.","done":false,"done_at":null,"future_log":false,"id":8,"kind":"task","time":null,"title":"Telefona al medico"},{"category":"mossa","date":"2026-10-19","detail":"Per sapere quando è la pulizia dei denti.","done":false,"done_at":null,"future_log":false,"id":9,"kind":"task","time":null,"title":"Telefona al dentista"},{"category":"sessione","date":"2026-10-20","detail":"Esposizione §1: problema, perché la teoria esistente non basta, l'idea, la mappa della prova. Diventa la sezione «problema» della nota e l'apertura del capitolo 1 su Overleaf.","done":false,"done_at":null,"future_log":false,"id":10,"kind":"task","time":"50 min","title":"Sessione 5 — la tesi in una pagina"},{"category":"mossa","date":"2026-10-21","detail":"Muse assembla la nota dalle tue due pagine (sessioni 1 e 5) e prepara Overleaf; tu correggi. Il montaggio parte solo dalle foto delle pagine o dalla dettatura — senza i tuoi output, non si assembla niente.","done":false,"done_at":null,"future_log":false,"id":11,"kind":"task","time":null,"title":"Correggi la nota assemblata"},{"category":"sessione","date":"2026-10-22","detail":"§9: i due coefficienti (−3/8 vs −1/8; ½ vs ¼ in Φ) ricontrollati contro la nota, conti tuoi. Prima riconta da (Δb)²/a, poi apri il conto della nota. Diventano le «osservazioni» della nota.","done":false,"done_at":null,"future_log":false,"id":12,"kind":"task","time":"50 min","title":"Sessione 13 — verifica dei due coefficienti"},{"category":"sessione","date":"2026-10-23","detail":"Revisione finale e invio: e-mail corta dall'account UniTo, nota di una pagina allegata, inizio della tesi su Overleaf.","done":false,"done_at":null,"future_log":false,"id":13,"kind":"task","time":"50 min","title":"Sessione 17 — revisione e invio a Giordano"},{"category":"mossa","date":null,"detail":"Bayesiana e algoritmi: Muse ci legge dentro e prepara le righe per il CV. L'autorizzazione è già fatta, manca solo la scelta dei repo.","done":false,"done_at":null,"future_log":false,"id":14,"kind":"task","time":null,"title":"Scegli i repository GitHub"},{"category":"scadenza","date":"2026-10-23","detail":"E-mail con la richiesta della lettera + nota di una pagina + inizio della tesi su Overleaf.","done":false,"done_at":null,"future_log":false,"id":15,"kind":"deadline","time":null,"title":"Pacchetto Giordano inviato"},{"category":"scadenza","date":"2026-10-25","detail":"Dal piano: entro oggi anche blocco A di Stochastic Processes + esercizi fatti.","done":false,"done_at":null,"future_log":false,"id":16,"kind":"deadline","time":null,"title":"Target list v0 + mappa dei supervisori"},{"category":"scadenza","date":"2026-10-27","detail":"Chiusura alle 16:00 CET. I link per i referee arrivano solo dopo che hai inviato: invia presto. Materiali: motivation letter di 1–2 pagine e video di 2–5 minuti; niente research statement per i PhD.","done":false,"done_at":null,"future_log":false,"id":17,"kind":"deadline","time":"16:00 CET","title":"ETH AI Center — application"},{"category":"scadenza","date":"2026-10-31","detail":"Application e richieste ai referee si bloccano nel portale alle 23:59 AoE; dopo non si cambia referee. La motivational letter di 2 pagine deve contenere il research statement.","done":false,"done_at":null,"future_log":false,"id":18,"kind":"deadline","time":"23:59 AoE","title":"ELLIS — application e nomine referee"},{"category":"scadenza","date":"2026-11-02","detail":"Application e lettere insieme, entro le 23:59 CET: il link del referee scade alla deadline, nessuna grazia.","done":false,"done_at":null,"future_log":false,"id":19,"kind":"deadline","time":"23:59 CET","title":"Max Planck–ETH CLS — tutto dovuto"},{"category":"scadenza","date":"2026-11-07","detail":"Sessioni delle settimane 5–7 contate; track deciso.","done":false,"done_at":null,"future_log":false,"id":20,"kind":"deadline","time":null,"title":"Checkpoint del piano"},{"category":"scadenza","date":"2026-11-25","detail":"Le lettere ELLIS si caricano entro le 23:59 AoE.","done":false,"done_at":null,"future_log":false,"id":21,"kind":"deadline","time":"23:59 AoE","title":"Lettere ELLIS dovute dai referee"},{"category":"scadenza","date":"2026-11-28","detail":"Conteggio degli arretrati; track confermato o cambiato.","done":false,"done_at":null,"future_log":false,"id":22,"kind":"deadline","time":null,"title":"Checkpoint del piano"},{"category":"scadenza","date":"2026-12-21","detail":"Stochastic Processes e MMML.","done":false,"done_at":null,"future_log":false,"id":23,"kind":"deadline","time":null,"title":"Registrazione esami su MyUnito"},{"category":"scadenza","date":"2027-01-19","detail":"Orale. Appello di recupero: 9 febbraio 2027.","done":false,"done_at":null,"future_log":false,"id":24,"kind":"deadline","time":null,"title":"Esame Stochastic Processes"},{"category":"scadenza","date":"2027-02-01","detail":"Metodi Matematici per il ML. La parte di De Rossi è già passata.","done":false,"done_at":null,"future_log":false,"id":25,"kind":"deadline","time":null,"title":"Esame MMML"},{"category":"scadenza","date":"2027-03-24","detail":"Dal piano v10.1: upload del PDF mercoledì 24 marzo 2027; hard stop lunedì 29 marzo.","done":false,"done_at":null,"future_log":false,"id":26,"kind":"deadline","time":null,"title":"Upload PDF della tesi"},{"category":"scadenza","date":"2027-04-09","detail":"DATA INDICATIVA: il piano dice «seconda settimana di aprile 2027», la data ufficiale non è ancora fissata — da aggiornare appena esce. Fallback: sessione di luglio.","done":false,"done_at":null,"future_log":false,"id":27,"kind":"deadline","time":null,"title":"Discussione della tesi (difesa)"},{"category":"mossa","date":"2026-10-24","detail":"Dopocena, luogo e ora esatti ancora «top secret» — dettagli in arrivo via chat di gruppo. Se salta il 24, fallback venerdì 30 ottobre.","done":false,"done_at":null,"future_log":false,"id":28,"kind":"task","time":"21:00","title":"Festa di laurea Giando e Ale"},{"category":"mossa","date":"2026-10-19","detail":"Discussione di laurea (Giando o Ale — non specificato). Via Conservatorio 7, aula 4, Milano, ~9:00–10:30. Solo promemoria: domani hai anche partenza Bernareggio ~9:00 e giorno 1 del piano.","done":false,"done_at":null,"future_log":false,"id":29,"kind":"task","time":"9:00","title":"Difesa di tesi — Giando/Ale"},{"category":"mossa","date":"2026-10-18","detail":"Dalla mail di conferma CPI (18 ott, ~18:05): scarica il modulo di consenso informato allegato, firmalo e caricalo nel portale pazienti PRIMA della seduta di lunedì 19 ott alle 19:00. ~10 minuti.","done":true,"done_at":"2026-10-19","future_log":false,"id":30,"kind":"task","time":null,"title":"Firma e carica il consenso informato per la seduta di domani"},{"category":"mossa","date":"2026-10-19","detail":"Centro Psicodiagnostico Italiano, pacchetto 4 colloqui Under 30. Online: link Google Meet già nella mail di conferma. PRIMA della seduta va caricato nel portale pazienti il consenso informato firmato (modulo allegato alla mail di conferma del 18 ott).","done":false,"done_at":null,"future_log":false,"id":31,"kind":"task","time":"19:00","title":"Primo colloquio di terapia — Dott.ssa Gaia Valeria Colombo (online)"},{"category":"scadenza","date":"2026-10-21","detail":"Prima rata a.a. 2026/2027 (bollo 16 euro + tassa regionale 140 euro), avviso pagoPA 001000000363478008, fattura 10363806. Avviso mandato a papà il 18 ott 2026: verificare che risulti pagata.","done":false,"done_at":null,"future_log":false,"id":32,"kind":"deadline","time":null,"title":"Scadenza rata 1 tasse UniTo: 156 euro"},{"category":"mossa","date":"2026-10-20","detail":"Bozze create il 19/10 con CV e transcript allegati. Prima di inviare: decisione ETH/CLS, i testi li nominano con lettere entro il 2 novembre.","done":false,"done_at":null,"future_log":false,"id":33,"kind":"task","time":null,"title":"Manda le email a Favaro e De Blasi (bozze pronte in Bozze UniTo)"},{"category":"mossa","date":"2026-11-12","detail":"Giovedì 12 novembre 2026, ore 11:00. Nuova data dopo il rinvio dello studio; sostituisce il vecchio slot del 22 ottobre, non più valido.","done":false,"done_at":null,"future_log":false,"id":34,"kind":"task","time":null,"title":"Dentista Zucchi (Carnate): pulizia"},{"category":"scadenza","date":"2027-01-21","detail":"Finestra iscrizioni appello MAT0368 del 28/01/2027: da martedì 29/12/2026 a giovedì 21/01/2027.","done":false,"done_at":null,"future_log":false,"id":35,"kind":"deadline","time":null,"title":"Iscrizione esame Applied Stochastic Calculus (chiusura Esse3)"},{"category":"scadenza","date":"2027-01-28","detail":"Appello MAT0368, docenti De Angelis e Regis. Fonte: Bacheca Appelli Esse3, 21/10/2026. Iscrizioni 29/12/2026 - 21/01/2027. Reshuffle piano: 25-27 gennaio solo Stoch. calc.","done":false,"done_at":null,"future_log":false,"id":36,"kind":"deadline","time":"15:00","title":"Esame Applied Stochastic Calculus (MAT0368), prova scritta"},{"category":"mossa","date":"2026-10-26","detail":"Seduta online, Centro Psicodiagnostico Italiano. Link per la seduta in arrivo via email. Già in Google Calendar (evento v4anfc6d9p33ecfe2utbogfkqg, 19:00-20:00).","done":false,"done_at":null,"future_log":false,"id":37,"kind":"task","time":"19:00","title":"Terapia online con Dott.ssa Colombo (seconda seduta del pacchetto)"},{"category":"scadenza","date":"2026-11-15","detail":"Invio per email a bewerbung@leibniz-bips.de di un unico PDF (cover letter + CV + certificati), rif. A26-25, codice tema CI. Pacchetto in preparazione; invio solo dopo revisione di Simone e suo 'manda'.","done":false,"done_at":null,"future_log":false,"id":38,"kind":"deadline","time":null,"title":"Scadenza candidatura BIPS Brema (PhD candidate, tema CI)"},{"category":"scadenza","date":"2026-11-01","detail":"Domanda via portale University of Copenhagen entro le 23:59 GMT+1: lettera motivata max 1 pagina con angolo proprio per il Copenhagen Causality Lab, CV, diplomi e transcript con traduzione inglese. Lettere di referenza facoltative. Inizio 1 settembre 2027.","done":false,"done_at":null,"future_log":false,"id":39,"kind":"deadline","time":null,"title":"Scadenza candidatura Copenhagen: PhD Statistics, Causality Lab"}]};
+const LS_KEY = "diario-data-v1";
+let data = null;
+
+function todayStr() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+function fmtDate(s) { if (!s) return ""; const p = s.split("-"); return p[2] + "/" + p[1] + "/" + p[0]; }
+
+async function load() {
+  try { const saved = localStorage.getItem(LS_KEY); if (saved) { data = JSON.parse(saved); render(); return; } } catch (e) {}
+  if (location.protocol === "http:" || location.protocol === "https:") {
+    try { const r = await fetch("data.json", { cache: "no-store" }); if (r.ok) { data = await r.json(); render(); return; } } catch (e) {}
+  }
+  data = EMBEDDED; render();
+}
+function persist() { try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (e) {} }
+
+function show(view) {
+  ["tasks","routines","log"].forEach(v => {
+    document.getElementById("view-" + v).style.display = v === view ? "" : "none";
+    document.getElementById("tab-" + v).classList.toggle("on", v === view);
+  });
+  document.getElementById("addbar").style.display = view === "tasks" ? "" : "none";
+}
+
+function taskCard(t, today) {
+  const overdue = !t.done && t.date && t.date < today;
+  const when = t.date ? (overdue ? '<span class="overdue">' + fmtDate(t.date) + " · scaduto</span>" : '<span class="when">' + fmtDate(t.date) + "</span>") : '<span>Senza data</span>';
+  return '<div class="card' + (t.done ? " done" : "") + '">' +
+    '<input type="checkbox" ' + (t.done ? "checked" : "") + ' onchange="toggleDone(' + t.id + ', this.checked)">' +
+    '<div><div class="t">' + esc(t.title) + '<span class="chip ' + esc(t.category || "") + '">' + esc(t.category || "") + "</span></div>" +
+    '<div class="meta">' + when + (t.time ? " · " + esc(t.time) : "") + "</div>" +
+    (t.detail ? '<div class="det">' + esc(t.detail) + "</div>" : "") + "</div></div>";
+}
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c])); }
+
+function group(title, items, today) {
+  if (!items.length) return "";
+  return "<h2>" + title + " (" + items.length + ")</h2>" + items.map(t => taskCard(t, today)).join("");
+}
+
+function render() {
+  const today = todayStr();
+  const dnames = ["domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato"];
+  const d = new Date();
+  document.getElementById("today").textContent = dnames[d.getDay()] + " " + fmtDate(today);
+  const tasks = (data.tasks || []).slice().sort((a,b) => (a.date || "9999") < (b.date || "9999") ? -1 : 1);
+  const open = tasks.filter(t => !t.done);
+  const overdue = open.filter(t => t.date && t.date < today);
+  const dueToday = open.filter(t => t.date === today);
+  const upcoming = open.filter(t => t.date && t.date > today);
+  const nodate = open.filter(t => !t.date);
+  const done = tasks.filter(t => t.done);
+  document.getElementById("counts").innerHTML =
+    '<span class="pill red"><b>' + overdue.length + "</b> scaduti</span>" +
+    '<span class="pill"><b>' + dueToday.length + "</b> oggi</span>" +
+    '<span class="pill"><b>' + upcoming.length + "</b> in arrivo</span>" +
+    '<span class="pill"><b>' + done.length + "</b> fatti</span>";
+  document.getElementById("view-tasks").innerHTML =
+    group("Scaduti", overdue, today) +
+    group("Oggi", dueToday, today) +
+    group("Prossimi", upcoming, today) +
+    group("Senza data", nodate, today) +
+    group("Fatti", done, today) ||
+    '<p class="empty">Nessun task.</p>';
+  document.getElementById("view-routines").innerHTML = "<h2>Routine (" + (data.routines || []).length + ")</h2>" +
+    (data.routines || []).slice().sort((a,b) => (a.sort||0)-(b.sort||0)).map(r =>
+      '<div class="card"><div><div class="t">' + esc(r.title) + '</div><div class="meta">' + esc(r.cadence || "") + "</div>" +
+      (r.detail ? '<div class="det">' + esc(r.detail) + "</div>" : "") + "</div></div>").join("");
+  document.getElementById("view-log").innerHTML = "<h2>Registro (" + (data.log || []).length + ")</h2>" +
+    (data.log || []).slice().sort((a,b) => a.date < b.date ? 1 : -1).map(l =>
+      '<div class="card"><div><div class="meta"><span class="when">' + fmtDate(l.date) + '</span></div><div class="det">' + esc(l.text) + "</div></div></div>").join("");
+}
+
+function toggleDone(id, checked) {
+  const t = (data.tasks || []).find(x => x.id === id); if (!t) return;
+  t.done = checked; t.done_at = checked ? todayStr() : null; persist(); render();
+}
+function addTask() {
+  const title = document.getElementById("new-title").value.trim(); if (!title) return;
+  const date = document.getElementById("new-date").value || null;
+  const id = Math.max(0, ...(data.tasks || []).map(t => t.id || 0)) + 1;
+  data.tasks.push({ id, title, date, time: null, detail: "", category: "mossa", kind: "task", done: false, done_at: null, future_log: false });
+  document.getElementById("new-title").value = ""; document.getElementById("new-date").value = "";
+  persist(); render();
+}
+function exportData() {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "data.json"; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function importData(ev) {
+  const f = ev.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { try { data = JSON.parse(r.result); persist(); render(); } catch (e) { alert("File non valido."); } };
+  r.readAsText(f);
+}
+function resetData() { localStorage.removeItem(LS_KEY); location.reload(); }
+document.getElementById("new-title").addEventListener("keydown", e => { if (e.key === "Enter") addTask(); });
+load();
+</script>
+</body>
+</html>
